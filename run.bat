@@ -1,5 +1,5 @@
 @echo off
 cd /d "%~dp0"
-python -m pip install -q -r requirements.txt
-python dualsense_mouse.py
-pause
+echo Checking dependencies...
+python -m pip install -q --disable-pip-version-check -r requirements.txt
+start "" pythonw dualsense_mouse.py

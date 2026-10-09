@@ -65,11 +65,13 @@ from pygame._sdl2 import controller as sdl_controller  # noqa: E402
 
 import winput as wi  # noqa: E402
 from focus_watch import FocusWatcher  # noqa: E402
+from gui import ControlPanel  # noqa: E402
 from overlay import ControllerKeyboard, Toast  # noqa: E402
 
 # ---------------------------------------------------------------- settings ---
 DEFAULT_MODE = "standard"    # "standard", "tiktok" or "browser"
 POLL_HZ = 120
+PANEL_HZ = 30                # how often the control panel redraws live input
 STICK_DEADZONE = 0.12        # ignore small stick drift (0..1)
 CURSOR_MAX_SPEED = 1400      # pixels per second at full tilt
 CURSOR_CURVE = 2.2           # >1 = finer control near the center
@@ -173,16 +175,14 @@ class App:
         sdl_controller.init()
         ctypes.windll.winmm.timeBeginPeriod(1)
 
-        user32 = ctypes.windll.user32
-        previous_window = user32.GetForegroundWindow()
         self.root = tk.Tk()
-        self.root.withdraw()
         self.root.report_callback_exception = self._on_error
+        self.root.protocol("WM_DELETE_WINDOW", self.quit)
         scale = self.root.winfo_fpixels("1i") / 96.0
         self.keyboard = ControllerKeyboard(self.root, scale)
         self.toast = Toast(self.root, scale)
-        self.root.update()
-        user32.SetForegroundWindow(previous_window)  # creating Tk windows grabs focus
+        self.panel = ControlPanel(self.root, scale, on_mode=self.set_mode, on_pause=self.toggle_pause)
+        self.panel.set_connection(None)
         self.watcher = FocusWatcher()
 
         self.pad = None
@@ -201,15 +201,20 @@ class App:
         self.close_tab_done = False
         self.dismissed_focus = None
         self.keyboard_opened_at = 0.0
+        self.next_panel_update = 0.0
+        self.next_battery_check = 0.0
         self.last = time.perf_counter()
         self.running = True
 
     # ---- lifecycle --------------------------------------------------------
     def run(self):
-        print(__doc__)
+        print("Control panel open. Close the window or press the PS button to quit.")
         self.set_mode(self.mode, announce=False)
+        self.root.lift()
+        self.root.focus_force()
         self.root.after(1, self.tick)
         self.root.mainloop()
+        self.root.destroy()
 
     def quit(self):
         if not self.running:
@@ -227,8 +232,13 @@ class App:
         else:
             import traceback
             traceback.print_exception(exc_type, exc, tb)
+            self.log(f"Error: {exc}")
 
     # ---- helpers ----------------------------------------------------------
+    def log(self, message):
+        print(message)
+        self.panel.log(message)
+
     def rumble(self, strength=0.4, ms=120):
         try:
             self.pad.rumble(strength, strength, ms)
@@ -254,10 +264,21 @@ class App:
         self.watcher.active = mode in AUTO_KEYBOARD_MODES
         self.dismissed_focus = self.watcher.focus_id  # don't pop up for what is already focused
         title, subtitle = MODE_INFO[mode]
-        print(f"Mode: {title}")
+        self.log(f"Switched to {title}")
+        self.panel.set_mode(mode)
         self.toast.show(title, subtitle)
         if announce:
             self.rumble(0.5, 90)
+
+    def toggle_pause(self):
+        self.enabled = not self.enabled
+        self.release_mouse()
+        self.keyboard.close()
+        self.log("Resumed" if self.enabled else "Paused (press Options to resume)")
+        self.panel.set_paused(not self.enabled)
+        self.toast.show("Resumed" if self.enabled else "Paused",
+                        "" if self.enabled else "Press Options to resume")
+        self.rumble(0.6 if self.enabled else 0.25, 150)
 
     def open_keyboard(self, auto=False):
         self.release_mouse()
@@ -278,13 +299,14 @@ class App:
         for i in range(sdl_controller.get_count()):
             if sdl_controller.is_controller(i):
                 self.pad = sdl_controller.Controller(i)
-                print(f"Connected: {self.pad.name or 'controller'}")
+                self.log(f"Connected: {self.pad.name or 'controller'}")
+                self.next_battery_check = 0.0
                 self.waiting_msg_shown = False
                 self.prev = {}
                 self.rumble()
                 return
         if not self.waiting_msg_shown:
-            print("Waiting for a controller (USB or Bluetooth)...")
+            self.log("Waiting for a controller (USB or Bluetooth)...")
             self.waiting_msg_shown = True
 
     # ---- main loop --------------------------------------------------------
@@ -304,7 +326,9 @@ class App:
         self.last = now
 
         if self.pad is not None and not self.pad.attached():
-            print("Controller disconnected.")
+            self.log("Controller disconnected.")
+            self.panel.set_connection(None)
+            self.panel.set_keyboard_open(False)
             self.pad = None
             self.release_mouse()
             self.keyboard.close()
@@ -316,6 +340,12 @@ class App:
         cur = {name: bool(pad.get_button(btn)) for name, btn in BUTTONS.items()}
         for name, axis in TRIGGERS.items():
             cur[name] = norm_axis(pad.get_axis(axis)) > TRIGGER_PRESS
+        lx = norm_axis(pad.get_axis(pygame.CONTROLLER_AXIS_LEFTX))
+        ly = norm_axis(pad.get_axis(pygame.CONTROLLER_AXIS_LEFTY))
+        rx = norm_axis(pad.get_axis(pygame.CONTROLLER_AXIS_RIGHTX))
+        ry = norm_axis(pad.get_axis(pygame.CONTROLLER_AXIS_RIGHTY))
+        self.update_panel(pad, dict(cur), lx, ly, rx, ry, now)
+
         self.suppressed = {n for n in self.suppressed if cur[n]}
         for name in self.suppressed:
             cur[name] = False
@@ -328,24 +358,13 @@ class App:
             return
 
         if "options" in pressed:
-            self.enabled = not self.enabled
-            self.release_mouse()
-            self.keyboard.close()
-            print("Mapping", "RESUMED" if self.enabled else "PAUSED (press Options to resume)")
-            self.toast.show("Resumed" if self.enabled else "Paused",
-                            "" if self.enabled else "Press Options to resume")
-            self.rumble(0.6 if self.enabled else 0.25, 150)
+            self.toggle_pause()
         if not self.enabled:
             return
 
         if "create" in pressed:
             self.set_mode(MODES[(MODES.index(self.mode) + 1) % len(MODES)])
             return
-
-        lx = norm_axis(pad.get_axis(pygame.CONTROLLER_AXIS_LEFTX))
-        ly = norm_axis(pad.get_axis(pygame.CONTROLLER_AXIS_LEFTY))
-        rx = norm_axis(pad.get_axis(pygame.CONTROLLER_AXIS_RIGHTX))
-        ry = norm_axis(pad.get_axis(pygame.CONTROLLER_AXIS_RIGHTY))
 
         self.update_auto_keyboard(now)
 
@@ -367,6 +386,23 @@ class App:
             self.tiktok_controls(cur, pressed, ry, now)
         else:
             self.browser_controls(cur, pressed, rx, ry, dt, now)
+
+    def update_panel(self, pad, buttons, lx, ly, rx, ry, now):
+        if now < self.next_panel_update:
+            return
+        self.next_panel_update = now + 1 / PANEL_HZ
+        axes = {"lx": lx, "ly": ly, "rx": rx, "ry": ry,
+                "l2": norm_axis(pad.get_axis(pygame.CONTROLLER_AXIS_TRIGGERLEFT)),
+                "r2": norm_axis(pad.get_axis(pygame.CONTROLLER_AXIS_TRIGGERRIGHT))}
+        self.panel.update_input(buttons, axes)
+        self.panel.set_keyboard_open(self.keyboard.visible)
+        if now >= self.next_battery_check:
+            self.next_battery_check = now + 15
+            try:
+                battery = pad.as_joystick().get_power_level()
+            except Exception:
+                battery = None
+            self.panel.set_connection(pad.name or "Controller", battery)
 
     # ---- shared -----------------------------------------------------------
     def move_cursor(self, lx, ly, slow, dt):
@@ -511,5 +547,11 @@ class App:
 if __name__ == "__main__":
     if sys.platform != "win32":
         sys.exit("This program uses the Windows SendInput API and only runs on Windows.")
-    sys.stdout.reconfigure(errors="replace")
-    App().run()
+    if sys.stdout:  # None when started with pythonw (no console)
+        sys.stdout.reconfigure(errors="replace")
+    try:
+        App().run()
+    except Exception as exc:
+        from tkinter import messagebox
+        messagebox.showerror("Use Your Controller on Desktop", f"The program stopped:\n\n{exc}")
+        raise

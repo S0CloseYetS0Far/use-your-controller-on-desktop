@@ -2,6 +2,8 @@
 
 **[English](#english) · [中文](#中文) · [العربية](#العربية)**
 
+![Control panel showing a DualSense controller with every button labelled](docs/control-panel.png)
+
 ---
 
 ## English
@@ -15,7 +17,7 @@ Use a PS5 DualSense controller as a mouse on Windows. It has three modes: **Stan
 
 ### Getting started
 1. Download or clone this repository.
-2. Double-click `run.bat`. It installs the dependencies (`pygame-ce`, `comtypes`) and starts the program.
+2. Double-click `run.bat`. It installs the dependencies (`pygame-ce`, `comtypes`) and opens the control panel.
    Or run it yourself:
    ```
    pip install -r requirements.txt
@@ -24,6 +26,14 @@ Use a PS5 DualSense controller as a mouse on Windows. It has three modes: **Stan
 3. Press **Create** (the small button left of the touchpad) to switch between Standard, TikTok and Browser mode. A message at the top of the screen shows the current mode.
 
 The program keeps reading the controller while another window, such as your browser, is the active window.
+
+### Control panel
+When the program starts, a window opens with a picture of the controller and what every button does in the current mode.
+- Buttons and sticks light up as you press and move them, so you can check the controller is working.
+- Click **Standard**, **TikTok** or **Browser** to switch mode, or **Pause** to pause the controller.
+- Click **Keyboard controls** to see the on-screen keyboard's buttons. The panel also switches to them by itself while the keyboard is open.
+- The top-right corner shows whether the controller is connected and its battery level.
+- Closing the window quits the program.
 
 ### Controls in every mode
 | Input | Action |
@@ -102,7 +112,7 @@ The keyboard never takes focus away from your browser, so what you type goes str
 
 ### 快速开始
 1. 下载或克隆本仓库。
-2. 双击 `run.bat`，它会自动安装依赖（`pygame-ce`、`comtypes`）并启动程序。
+2. 双击 `run.bat`，它会自动安装依赖（`pygame-ce`、`comtypes`）并打开控制面板。
    也可以手动运行：
    ```
    pip install -r requirements.txt
@@ -111,6 +121,14 @@ The keyboard never takes focus away from your browser, so what you type goes str
 3. 按 **Create 键**（触摸板左侧的小按钮）在标准、TikTok 和浏览器模式之间切换。屏幕顶部会显示当前模式。
 
 即使浏览器等其他窗口处于活动状态，程序也会持续读取手柄输入。
+
+### 控制面板
+程序启动后会打开一个窗口，显示手柄图片以及当前模式下每个按键的功能。
+- 按下按键或移动摇杆时，图片上对应的部分会亮起，方便确认手柄是否正常工作。
+- 点击 **Standard**、**TikTok** 或 **Browser** 切换模式，点击 **Pause** 暂停手柄。
+- 点击 **Keyboard controls** 查看屏幕键盘的按键说明。屏幕键盘打开时，面板也会自动切换到这些说明。
+- 右上角显示手柄是否已连接以及电量。
+- 关闭窗口即可退出程序。
 
 ### 所有模式通用
 | 按键 | 功能 |
@@ -191,7 +209,7 @@ The keyboard never takes focus away from your browser, so what you type goes str
 
 ### طريقة التشغيل
 1. حمّل هذا المستودع أو انسخه.
-2. انقر نقرًا مزدوجًا على `run.bat`، وسيقوم بتثبيت المكتبات المطلوبة (`pygame-ce` و`comtypes`) وتشغيل البرنامج.
+2. انقر نقرًا مزدوجًا على `run.bat`، وسيقوم بتثبيت المكتبات المطلوبة (`pygame-ce` و`comtypes`) وفتح لوحة التحكم.
    أو شغّله يدويًا:
 
 </div>
@@ -206,6 +224,14 @@ python dualsense_mouse.py
 3. اضغط على زر **Create** (الزر الصغير على يسار لوحة اللمس) للتبديل بين الوضع العادي ووضع تيك توك ووضع المتصفح. تظهر رسالة أعلى الشاشة توضح الوضع الحالي.
 
 يستمر البرنامج في قراءة يد التحكم حتى عندما تكون نافذة أخرى، مثل المتصفح، هي النافذة النشطة.
+
+### لوحة التحكم
+عند تشغيل البرنامج تُفتح نافذة تعرض صورة يد التحكم ووظيفة كل زر في الوضع الحالي.
+- تضيء الأزرار والعصي في الصورة عند الضغط عليها أو تحريكها، لتتأكد من أن يد التحكم تعمل.
+- انقر على **Standard** أو **TikTok** أو **Browser** لتبديل الوضع، أو على **Pause** لإيقاف يد التحكم مؤقتًا.
+- انقر على **Keyboard controls** لعرض أزرار لوحة المفاتيح على الشاشة. وتنتقل اللوحة إليها تلقائيًا عندما تكون لوحة المفاتيح مفتوحة.
+- يعرض الركن العلوي حالة اتصال يد التحكم ومستوى البطارية.
+- إغلاق النافذة يُغلق البرنامج.
 
 ### أزرار مشتركة في كل الأوضاع
 | الزر | الوظيفة |
